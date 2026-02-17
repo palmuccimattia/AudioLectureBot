@@ -1,0 +1,1249 @@
+{
+  "id": "SFzj5AicrDxtlBEk",
+  "name": "AudioLecture - Queue Processor",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "seconds",
+              "secondsInterval": 5
+            }
+          ]
+        }
+      },
+      "id": "qp-cron",
+      "name": "Ogni 3 Minuti",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        240,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "<GOOGLE_SHEET_ID>",
+          "mode": "list",
+          "cachedResultName": "AudioLectureDB",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/<GOOGLE_SHEET_ID>/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1698717085,
+          "mode": "list",
+          "cachedResultName": "transcription_queue",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/<GOOGLE_SHEET_ID>/edit#gid=1698717085"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "status",
+              "lookupValue": "pending"
+            }
+          ]
+        },
+        "options": {
+          "returnFirstMatch": false
+        }
+      },
+      "id": "qp-read-queue",
+      "name": "Leggi Coda Pending",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        464,
+        304
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "<GOOGLE_SHEETS_CREDENTIAL_ID>",
+          "name": "Evolvi Digital – Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has-pending",
+              "leftValue": "={{ $input.all().filter(i => i.json.status === 'pending').length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "qp-if-pending",
+      "name": "Job in Coda?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        688,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://<WORKER_EC2_IP>:8000/health",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 5000
+        }
+      },
+      "id": "qp-health-check",
+      "name": "Worker Health Check",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        912,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "is-healthy",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "healthy",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "qp-if-healthy",
+      "name": "Worker Pronto?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1120,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prende tutti i job pending dalla coda letta all'inizio\nconst allItems = $('Leggi Coda Pending').all();\nconst pending = allItems.filter(item => item.json.status === 'pending');\nreturn pending;"
+      },
+      "id": "qp-get-pending",
+      "name": "Prepara Job da Inviare",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1344,
+        144
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://<WORKER_EC2_IP>:8000/transcribe",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ file_id: $json.file_id, chat_id: $json.chat_id, user_id: $json.user_id, callback_url: \"https://<YOUR_N8N_HOST>/webhook/transcription-complete\" }) }}",
+        "options": {}
+      },
+      "id": "qp-send-job",
+      "name": "Invia Job al Worker",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2000,
+        32
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "<GOOGLE_SHEET_ID>",
+          "mode": "list",
+          "cachedResultName": "AudioLectureDB",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/<GOOGLE_SHEET_ID>/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1698717085,
+          "mode": "list",
+          "cachedResultName": "transcription_queue",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/<GOOGLE_SHEET_ID>/edit#gid=1698717085"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $('Loop Over Items').item.json.id}}",
+            "status": "processing",
+            "job_id": "={{ $json.job_id }}",
+            "started_at": "={{ $now.toUTC() }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "job_id",
+              "displayName": "job_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "user_id",
+              "displayName": "user_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "chat_id",
+              "displayName": "chat_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "file_id",
+              "displayName": "file_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "file_size",
+              "displayName": "file_size",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "duration_seconds",
+              "displayName": "duration_seconds",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "started_at",
+              "displayName": "started_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "completed_at",
+              "displayName": "completed_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "error_message",
+              "displayName": "error_message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "qp-update-processing",
+      "name": "Aggiorna Status Processing",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2224,
+        32
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "<GOOGLE_SHEETS_CREDENTIAL_ID>",
+          "name": "Evolvi Digital – Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Worker non risponde: avvia EC2 via AWS SDK HTTP\n// Nota: le credenziali AWS devono essere configurate come env vars su n8n\n// oppure usare un nodo AWS dedicato\nreturn [{ json: { action: 'start_ec2', instance_id: '<EC2_INSTANCE_ID>' } }];"
+      },
+      "id": "qp-prepare-start",
+      "name": "Prepara Avvio EC2",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1344,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://ec2.us-east-1.amazonaws.com/",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "aws",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/x-www-form-urlencoded"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "Action",
+              "value": "StartInstances"
+            },
+            {
+              "name": "InstanceId.1",
+              "value": "<EC2_INSTANCE_ID>"
+            },
+            {
+              "name": "Version",
+              "value": "2016-11-15"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "qp-start-ec2",
+      "name": "Avvia EC2 Worker",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1632,
+        304
+      ],
+      "credentials": {
+        "aws": {
+          "id": "<AWS_CREDENTIAL_ID>",
+          "name": "AudioLecture - AWS"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "amount": 90
+      },
+      "id": "qp-wait-startup",
+      "name": "Attendi Avvio (90s)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1840,
+        304
+      ],
+      "webhookId": "qp-wait-startup",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        1712,
+        48
+      ],
+      "id": "04cd2fd5-7d0d-47c0-b837-0f76183a5602",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "transcription-complete",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "904fa019-17a7-490b-95bd-a6a9e39e7943",
+      "name": "Webhook Callback",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        464,
+        720
+      ],
+      "webhookId": "transcription-complete"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "status-check",
+              "leftValue": "={{ $json.body.status }}",
+              "rightValue": "completed",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "e50dd7b6-6eaf-4137-9927-4fc943167fc6",
+      "name": "Completato?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        688,
+        720
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "<GOOGLE_SHEET_ID>",
+          "mode": "list",
+          "cachedResultName": "AudioLectureDB",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/<GOOGLE_SHEET_ID>/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1698717085,
+          "mode": "list",
+          "cachedResultName": "transcription_queue",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/<GOOGLE_SHEET_ID>/edit#gid=1698717085"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "job_id",
+              "lookupValue": "={{ $('Webhook Callback').item.json.body.job_id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "79c63f68-1b19-4c71-8d9d-4e420d9c2703",
+      "name": "Trova Job in Coda",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        912,
+        624
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "<GOOGLE_SHEETS_CREDENTIAL_ID>",
+          "name": "Evolvi Digital – Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "<GOOGLE_SHEET_ID>",
+          "mode": "list",
+          "cachedResultName": "AudioLectureDB",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/<GOOGLE_SHEET_ID>/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1698717085,
+          "mode": "list",
+          "cachedResultName": "transcription_queue",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/<GOOGLE_SHEET_ID>/edit#gid=1698717085"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "job_id": "={{ $json.job_id }}",
+            "status": "completed",
+            "completed_at": "={{ $now.toISO() }}"
+          },
+          "matchingColumns": [
+            "job_id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "job_id",
+              "displayName": "job_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "user_id",
+              "displayName": "user_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "chat_id",
+              "displayName": "chat_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "file_id",
+              "displayName": "file_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "file_size",
+              "displayName": "file_size",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "duration_seconds",
+              "displayName": "duration_seconds",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "started_at",
+              "displayName": "started_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "completed_at",
+              "displayName": "completed_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "error_message",
+              "displayName": "error_message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "59a67cf2-2b40-4457-b625-d41faa596a3d",
+      "name": "Aggiorna Status Completed",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1136,
+        624
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "<GOOGLE_SHEETS_CREDENTIAL_ID>",
+          "name": "Evolvi Digital – Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "<GOOGLE_SHEET_ID>",
+          "mode": "list",
+          "cachedResultName": "AudioLectureDB",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/<GOOGLE_SHEET_ID>/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1698717085,
+          "mode": "list",
+          "cachedResultName": "transcription_queue",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/<GOOGLE_SHEET_ID>/edit#gid=1698717085"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "status": "failed",
+            "completed_at": "={{ new Date().toISOString() }}",
+            "error_message": "={{ $('Webhook Callback').item.json.body.error }}",
+            "row_number": 0
+          },
+          "matchingColumns": [
+            "job_id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "job_id",
+              "displayName": "job_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "user_id",
+              "displayName": "user_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "chat_id",
+              "displayName": "chat_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "file_id",
+              "displayName": "file_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "file_size",
+              "displayName": "file_size",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "duration_seconds",
+              "displayName": "duration_seconds",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "started_at",
+              "displayName": "started_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "completed_at",
+              "displayName": "completed_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "error_message",
+              "displayName": "error_message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "2ec6af8e-7eb4-4edd-9454-fbe68fbf815d",
+      "name": "Aggiorna Status Failed",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        912,
+        848
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "<GOOGLE_SHEETS_CREDENTIAL_ID>",
+          "name": "Evolvi Digital – Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={ \"ok\": true }",
+        "options": {}
+      },
+      "id": "dd3470e1-a227-4c35-aa3c-a70ceea259b2",
+      "name": "Rispondi OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1376,
+        848
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Controlla se la coda è vuota da più di 10 minuti\nconst now = new Date();\nconst sheetData = $input.all();\n\n// Conta job pending o processing\nconst activeJobs = sheetData.filter(item => \n  item.json.status === 'pending' || item.json.status === 'processing'\n);\n\nif (activeJobs.length > 0) {\n  return [{ json: { should_stop: false, reason: 'active_jobs', count: activeJobs.length } }];\n}\n\n// Trova l'ultimo job completato\nconst completedJobs = sheetData\n  .filter(item => item.json.completed_at)\n  .sort((a, b) => new Date(b.json.completed_at) - new Date(a.json.completed_at));\n\nif (completedJobs.length === 0) {\n  return [{ json: { should_stop: true, reason: 'no_jobs_ever' } }];\n}\n\nconst lastCompleted = new Date(completedJobs[0].json.completed_at);\nconst idleMinutes = (now - lastCompleted) / 1000 / 60;\n\nreturn [{ json: { \n  should_stop: idleMinutes >= 10, \n  idle_minutes: Math.round(idleMinutes),\n  reason: idleMinutes >= 10 ? 'idle_10min' : 'recently_active'\n} }];"
+      },
+      "id": "4ee0f5c4-25d1-465d-80ff-c780802bedd4",
+      "name": "Coda Vuota da 10 min?",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1344,
+        624
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "idle-check",
+              "leftValue": "={{ $json.should_stop }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "de2a6163-122b-4424-8312-3985427e0209",
+      "name": "Fermare EC2?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1568,
+        624
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://ec2.us-east-1.amazonaws.com/",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "aws",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/x-www-form-urlencoded"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "Action",
+              "value": "StopInstances"
+            },
+            {
+              "name": "InstanceId.1",
+              "value": "<EC2_INSTANCE_ID>"
+            },
+            {
+              "name": "Version",
+              "value": "2016-11-15"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "1602f2b0-a29d-4786-9c0d-850578d9e27a",
+      "name": "Stop EC2 Worker",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1856,
+        544
+      ],
+      "credentials": {
+        "aws": {
+          "id": "<AWS_CREDENTIAL_ID>",
+          "name": "AudioLecture - AWS"
+        }
+      },
+      "disabled": true
+    }
+  ],
+  "connections": {
+    "Ogni 3 Minuti": {
+      "main": [
+        [
+          {
+            "node": "Leggi Coda Pending",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leggi Coda Pending": {
+      "main": [
+        [
+          {
+            "node": "Job in Coda?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Job in Coda?": {
+      "main": [
+        [
+          {
+            "node": "Worker Health Check",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Worker Health Check": {
+      "main": [
+        [
+          {
+            "node": "Worker Pronto?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Worker Pronto?": {
+      "main": [
+        [
+          {
+            "node": "Prepara Job da Inviare",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepara Avvio EC2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepara Job da Inviare": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Invia Job al Worker": {
+      "main": [
+        [
+          {
+            "node": "Aggiorna Status Processing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepara Avvio EC2": {
+      "main": [
+        [
+          {
+            "node": "Avvia EC2 Worker",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Avvia EC2 Worker": {
+      "main": [
+        [
+          {
+            "node": "Attendi Avvio (90s)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Invia Job al Worker",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggiorna Status Processing": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook Callback": {
+      "main": [
+        [
+          {
+            "node": "Completato?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Completato?": {
+      "main": [
+        [
+          {
+            "node": "Trova Job in Coda",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Aggiorna Status Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trova Job in Coda": {
+      "main": [
+        [
+          {
+            "node": "Aggiorna Status Completed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggiorna Status Completed": {
+      "main": [
+        [
+          {
+            "node": "Rispondi OK",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Coda Vuota da 10 min?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggiorna Status Failed": {
+      "main": [
+        [
+          {
+            "node": "Rispondi OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Coda Vuota da 10 min?": {
+      "main": [
+        [
+          {
+            "node": "Fermare EC2?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fermare EC2?": {
+      "main": [
+        [
+          {
+            "node": "Stop EC2 Worker",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "staticData": {
+    "node:Ogni 3 Minuti": {
+      "recurrenceRules": []
+    }
+  },
+  "meta": null,
+  "pinData": {},
+  "tags": []
+}

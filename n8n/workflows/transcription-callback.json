@@ -1,0 +1,227 @@
+{
+  "name": "AudioLecture - Transcription Callback",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "transcription-complete",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "cb-webhook",
+      "name": "Webhook Callback",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "transcription-complete"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "id": "status-check",
+              "leftValue": "={{ $json.body.status }}",
+              "rightValue": "completed",
+              "operator": { "type": "string", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "cb-if-completed",
+      "name": "Completato?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "documentId": { "__rl": true, "value": "1h3zVHs8WkwHaLiewgug0CPnm9SjMDBXQmw18vtnNTVw", "mode": "id" },
+        "sheetName": { "__rl": true, "value": "transcription_queue", "mode": "name" },
+        "filtersUI": {
+          "values": [
+            { "lookupColumn": "id", "lookupValue": "={{ $json.body.job_id }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "cb-find-job",
+      "name": "Trova Job in Coda",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [680, 200],
+      "credentials": {
+        "googleSheetsOAuth2Api": { "id": "H83NWu3HiZHr96wx", "name": "Evolvi Digital – Google Sheets" }
+      },
+      "parameters": {
+        "operation": "read",
+        "documentId": { "__rl": true, "value": "1h3zVHs8WkwHaLiewgug0CPnm9SjMDBXQmw18vtnNTVw", "mode": "id" },
+        "sheetName": { "__rl": true, "value": "transcription_queue", "mode": "name" },
+        "filtersUI": {
+          "values": [
+            { "lookupColumn": "id", "lookupValue": "={{ $('Webhook Callback').item.json.body.job_id }}" }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": { "__rl": true, "value": "1h3zVHs8WkwHaLiewgug0CPnm9SjMDBXQmw18vtnNTVw", "mode": "id" },
+        "sheetName": { "__rl": true, "value": "transcription_queue", "mode": "name" },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "status": "completed",
+            "completed_at": "={{ new Date().toISOString() }}"
+          },
+          "matchingColumns": ["id"],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "cb-update-completed",
+      "name": "Aggiorna Status Completed",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [900, 200],
+      "credentials": {
+        "googleSheetsOAuth2Api": { "id": "H83NWu3HiZHr96wx", "name": "Evolvi Digital – Google Sheets" }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": { "__rl": true, "value": "1h3zVHs8WkwHaLiewgug0CPnm9SjMDBXQmw18vtnNTVw", "mode": "id" },
+        "sheetName": { "__rl": true, "value": "transcription_queue", "mode": "name" },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "status": "failed",
+            "completed_at": "={{ new Date().toISOString() }}",
+            "error_message": "={{ $('Webhook Callback').item.json.body.error }}"
+          },
+          "matchingColumns": ["id"],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "cb-update-failed",
+      "name": "Aggiorna Status Failed",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [680, 420],
+      "credentials": {
+        "googleSheetsOAuth2Api": { "id": "H83NWu3HiZHr96wx", "name": "Evolvi Digital – Google Sheets" }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={ \"ok\": true }",
+        "options": {}
+      },
+      "id": "cb-respond",
+      "name": "Rispondi OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Controlla se la coda è vuota da più di 10 minuti\nconst now = new Date();\nconst sheetData = $input.all();\n\n// Conta job pending o processing\nconst activeJobs = sheetData.filter(item => \n  item.json.status === 'pending' || item.json.status === 'processing'\n);\n\nif (activeJobs.length > 0) {\n  return [{ json: { should_stop: false, reason: 'active_jobs', count: activeJobs.length } }];\n}\n\n// Trova l'ultimo job completato\nconst completedJobs = sheetData\n  .filter(item => item.json.completed_at)\n  .sort((a, b) => new Date(b.json.completed_at) - new Date(a.json.completed_at));\n\nif (completedJobs.length === 0) {\n  return [{ json: { should_stop: true, reason: 'no_jobs_ever' } }];\n}\n\nconst lastCompleted = new Date(completedJobs[0].json.completed_at);\nconst idleMinutes = (now - lastCompleted) / 1000 / 60;\n\nreturn [{ json: { \n  should_stop: idleMinutes >= 10, \n  idle_minutes: Math.round(idleMinutes),\n  reason: idleMinutes >= 10 ? 'idle_10min' : 'recently_active'\n} }];"
+      },
+      "id": "cb-check-idle",
+      "name": "Coda Vuota da 10 min?",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 200]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "id": "idle-check",
+              "leftValue": "={{ $json.should_stop }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "true" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "cb-if-idle",
+      "name": "Fermare EC2?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1340, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://ec2.eu-west-1.amazonaws.com/",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/x-www-form-urlencoded" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            { "name": "Action", "value": "StopInstances" },
+            { "name": "InstanceId.1", "value": "i-0707d2321dd361aaa" },
+            { "name": "Version", "value": "2016-11-15" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "cb-stop-ec2",
+      "name": "Stop EC2 Worker",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1560, 160]
+    }
+  ],
+  "connections": {
+    "Webhook Callback": {
+      "main": [[{ "node": "Completato?", "type": "main", "index": 0 }]]
+    },
+    "Completato?": {
+      "main": [
+        [{ "node": "Trova Job in Coda", "type": "main", "index": 0 }],
+        [{ "node": "Aggiorna Status Failed", "type": "main", "index": 0 }]
+      ]
+    },
+    "Trova Job in Coda": {
+      "main": [[{ "node": "Aggiorna Status Completed", "type": "main", "index": 0 }]]
+    },
+    "Aggiorna Status Completed": {
+      "main": [[{ "node": "Rispondi OK", "type": "main", "index": 0 }, { "node": "Coda Vuota da 10 min?", "type": "main", "index": 0 }]]
+    },
+    "Aggiorna Status Failed": {
+      "main": [[{ "node": "Rispondi OK", "type": "main", "index": 0 }]]
+    },
+    "Coda Vuota da 10 min?": {
+      "main": [[{ "node": "Fermare EC2?", "type": "main", "index": 0 }]]
+    },
+    "Fermare EC2?": {
+      "main": [
+        [{ "node": "Stop EC2 Worker", "type": "main", "index": 0 }],
+        []
+      ]
+    }
+  },
+  "settings": { "executionOrder": "v1" },
+  "staticData": null,
+  "tags": [],
+  "pinData": {}
+}

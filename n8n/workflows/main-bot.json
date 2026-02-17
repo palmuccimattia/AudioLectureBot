@@ -1,0 +1,734 @@
+{
+  "id": "s-W_XN6Sv06HcbUHf-mMC",
+  "name": "AudioLectureBot",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message",
+          "callback_query"
+        ],
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -784,
+        -96
+      ],
+      "id": "070afe9c-4e66-4089-8e16-2be47dd3e52b",
+      "name": "Telegram Trigger",
+      "webhookId": "899cdca7-444f-4710-8e3c-0491f1f3fd94",
+      "credentials": {
+        "telegramApi": {
+          "id": "<TELEGRAM_CREDENTIAL_ID>",
+          "name": "AudioLectureBot - Telegram API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "is-callback",
+              "leftValue": "={{ $json.callback_query }}",
+              "rightValue": "",
+              "operator": {
+                "type": "object",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -528,
+        -96
+      ],
+      "id": "c0c0c0c0-0000-0000-0000-000000000001",
+      "name": "È un Callback?"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": ""
+          },
+          "conditions": [
+            {
+              "id": "is-consent-callback",
+              "leftValue": "={{ $json.callback_query.data }}",
+              "rightValue": "accept_privacy",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -256,
+        -304
+      ],
+      "id": "c0c0c0c0-0000-0000-0000-000000000002",
+      "name": "Consenso accettato?"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "<GOOGLE_SHEET_ID>",
+          "mode": "list",
+          "cachedResultName": "AudioLectureDB",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/<GOOGLE_SHEET_ID>/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "users",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/<GOOGLE_SHEET_ID>/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "user_id": "={{ $json.callback_query.from.id }}",
+            "first_name": "={{ $json.callback_query.from.first_name }}",
+            "consent_timestamp": "={{ $now.toUTC() }}",
+            "consent_version": "1.0",
+            "last_name": "={{ $json.callback_query.from.last_name }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "user_id",
+              "displayName": "user_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "first_name",
+              "displayName": "first_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "last_name",
+              "displayName": "last_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "consent_timestamp",
+              "displayName": "consent_timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "consent_version",
+              "displayName": "consent_version",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        32,
+        -400
+      ],
+      "id": "c0c0c0c0-0000-0000-0000-000000000003",
+      "name": "Salva Consenso",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "<GOOGLE_SHEETS_CREDENTIAL_ID>",
+          "name": "Evolvi Digital – Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "callback",
+        "queryId": "={{ $('È un Callback?').item.json.callback_query.id }}",
+        "additionalFields": {
+          "text": "Consenso registrato! Ora puoi inviarmi i tuoi audio."
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        32,
+        -192
+      ],
+      "id": "c0c0c0c0-0000-0000-0000-000000000004",
+      "name": "Conferma Consenso",
+      "webhookId": "6e40e125-55cf-47f8-85e9-354f51fc247a",
+      "credentials": {
+        "telegramApi": {
+          "id": "<TELEGRAM_CREDENTIAL_ID>",
+          "name": "AudioLectureBot - Telegram API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.callback_query.message.chat.id }}",
+        "text": "Perfetto, consenso registrato! ✅\n\nOra puoi inviarmi un audio o un file vocale di una lezione e lo trascriverò in PDF per te 🎓",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        320,
+        -400
+      ],
+      "id": "c0c0c0c0-0000-0000-0000-000000000010",
+      "name": "Messaggio Post-Consenso",
+      "webhookId": "67c40817-8747-4cb9-9bda-d3b688c92dff",
+      "credentials": {
+        "telegramApi": {
+          "id": "<TELEGRAM_CREDENTIAL_ID>",
+          "name": "AudioLectureBot - Telegram API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "<GOOGLE_SHEET_ID>",
+          "mode": "list",
+          "cachedResultName": "AudioLectureDB",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/<GOOGLE_SHEET_ID>/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "users",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/<GOOGLE_SHEET_ID>/edit#gid=0"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "user_id",
+              "lookupValue": "={{ $json.message.from.id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        -256,
+        112
+      ],
+      "id": "a1b2c3d4-1111-2222-3333-444455556666",
+      "name": "Cerca Utente",
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "<GOOGLE_SHEETS_CREDENTIAL_ID>",
+          "name": "Evolvi Digital – Google Sheets"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "condition-consent-check",
+              "leftValue": "={{ $json.user_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "number",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        32,
+        112
+      ],
+      "id": "b2c3d4e5-2222-3333-4444-555566667777",
+      "name": "Ha dato consenso?"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "text": "=Ciao {{ $('Telegram Trigger').item.json.message.from.first_name }}! 👋\n\nSono AudioLecture, il bot che trascrive le tue lezioni audio in PDF.\n\nPrima di iniziare, devo chiederti di accettare la nostra informativa sulla privacy.\n\n📄 Leggi l'informativa completa: https://<YOUR_DOMAIN>/privacy\n\nQuando sei pronto, clicca il pulsante qui sotto:",
+        "replyMarkup": "inlineKeyboard",
+        "inlineKeyboard": {
+          "rows": [
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "✅ Accetto le condizioni",
+                    "additionalFields": {
+                      "callback_data": "accept_privacy"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        320,
+        208
+      ],
+      "id": "c0c0c0c0-0000-0000-0000-000000000005",
+      "name": "Messaggio Onboarding",
+      "webhookId": "d4ce3b1e-a4af-48e1-bcc7-04875dba215e",
+      "credentials": {
+        "telegramApi": {
+          "id": "<TELEGRAM_CREDENTIAL_ID>",
+          "name": "AudioLectureBot - Telegram API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "is-audio",
+              "leftValue": "={{ $('Telegram Trigger').item.json.message.voice || $('Telegram Trigger').item.json.message.audio || $('Telegram Trigger').item.json.message.document }}",
+              "rightValue": "",
+              "operator": {
+                "type": "object",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        320,
+        16
+      ],
+      "id": "c0c0c0c0-0000-0000-0000-000000000008",
+      "name": "È un audio?"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "text": "📝 Trascrizione in coda! Riceverai il PDF appena pronta.",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        592,
+        -96
+      ],
+      "id": "c0c0c0c0-0000-0000-0000-000000000006",
+      "name": "Conferma in Coda",
+      "webhookId": "827bea78-2d41-493e-8ba8-5fcaba51bd77",
+      "credentials": {
+        "telegramApi": {
+          "id": "<TELEGRAM_CREDENTIAL_ID>",
+          "name": "AudioLectureBot - Telegram API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "<GOOGLE_SHEET_ID>",
+          "mode": "list",
+          "cachedResultName": "AudioLectureDB",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/<GOOGLE_SHEET_ID>/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1698717085,
+          "mode": "list",
+          "cachedResultName": "transcription_queue",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/<GOOGLE_SHEET_ID>/edit#gid=1698717085"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $now.toMillis() }}",
+            "user_id": "={{ $('Telegram Trigger').item.json.message.from.id }}",
+            "chat_id": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+            "file_id": "={{ $('Telegram Trigger').item.json.message.voice?.file_id || $('Telegram Trigger').item.json.message.audio?.file_id || $('Telegram Trigger').item.json.message.document?.file_id || '' }}",
+            "file_size": "={{ $('Telegram Trigger').item.json.message.voice?.file_size || $('Telegram Trigger').item.json.message.audio?.file_size || $('Telegram Trigger').item.json.message.document?.file_size || '' }}",
+            "duration_seconds": "={{ $('Telegram Trigger').item.json.message.voice?.duration || $('Telegram Trigger').item.json.message.audio?.duration || 0 }}",
+            "status": "pending",
+            "created_at": "={{ $now.toUTC() }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "job_id",
+              "displayName": "job_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "user_id",
+              "displayName": "user_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "chat_id",
+              "displayName": "chat_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "file_id",
+              "displayName": "file_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "file_size",
+              "displayName": "file_size",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "duration_seconds",
+              "displayName": "duration_seconds",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "started_at",
+              "displayName": "started_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "completed_at",
+              "displayName": "completed_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "error_message",
+              "displayName": "error_message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        880,
+        -96
+      ],
+      "id": "c0c0c0c0-0000-0000-0000-000000000007",
+      "name": "Salva in Coda",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "<GOOGLE_SHEETS_CREDENTIAL_ID>",
+          "name": "Evolvi Digital – Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "text": "Ciao! Inviami un audio o un file vocale di una lezione e lo trascriverò in PDF per te 🎓",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        592,
+        112
+      ],
+      "id": "c0c0c0c0-0000-0000-0000-000000000009",
+      "name": "Messaggio Benvenuto",
+      "webhookId": "14f23f66-f242-48ed-b4f0-797750e9c61c",
+      "credentials": {
+        "telegramApi": {
+          "id": "<TELEGRAM_CREDENTIAL_ID>",
+          "name": "AudioLectureBot - Telegram API"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "È un Callback?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "È un Callback?": {
+      "main": [
+        [
+          {
+            "node": "Consenso accettato?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Cerca Utente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consenso accettato?": {
+      "main": [
+        [
+          {
+            "node": "Salva Consenso",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Conferma Consenso",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Salva Consenso": {
+      "main": [
+        [
+          {
+            "node": "Messaggio Post-Consenso",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cerca Utente": {
+      "main": [
+        [
+          {
+            "node": "Ha dato consenso?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ha dato consenso?": {
+      "main": [
+        [
+          {
+            "node": "È un audio?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Messaggio Onboarding",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "È un audio?": {
+      "main": [
+        [
+          {
+            "node": "Conferma in Coda",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Messaggio Benvenuto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Conferma in Coda": {
+      "main": [
+        [
+          {
+            "node": "Salva in Coda",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}
